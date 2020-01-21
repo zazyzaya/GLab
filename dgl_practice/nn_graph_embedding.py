@@ -1,0 +1,52 @@
+'''
+Based on Neural Network-based Graph Embedding for Cross-Platform Binary Code Similarity Detection
+Xu et al., 2017
+'''
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from dgl import DGLGraph
+import dgl.function as fn 
+
+class GEModel(nn.Module):
+    def __init__(self, v_params=5, embed_size=10, embedding_depth=4):
+        super(GEModel, self).__init__()
+        self.v_param_layer = nn.Linear(v_params, embed_size)
+        
+        # Tunable number of conv layers. Paper says 4 is best
+        self.conv_layers = nn.ModuleList(
+            [nn.Linear(embed_size, embed_size) for _ in range(embedding_depth)]
+        )
+
+    def forward(self, xv, mu):
+        for layer in self.conv_layers:
+            mu = F.relu(layer(mu))
+        
+        xv = self.v_param_layer(xv)
+        return F.tanh(xv + mu)
+
+class SiameseNetwork(nn.Module):
+    def __init__(self, Embedder, iters=5):
+        super(SiameseNetwork, self).__init__()
+        self.embedder = Embedder
+        self.iters=iters
+        self.linear = nn.Linear(Embedder.out_features, Embedder.out_features)
+
+    def forward(self, g1, g2): 
+        # Convolutional layer building up 'mu' vector for each node
+        for g in [g1, g2]:
+            for i in range(self.iters):
+                g.update_all(
+                    message_func=fn.copy_src(src='mu', out='mail'),
+                    reduce_func=fn.sum(msg='mail', out='mu_sum')
+                )
+
+                for node in g.nodes:
+                    node.data['mu'] = self.embedder(node.data['attribs'], node.data['mu_sum'])
+        
+        # Turn sum of mu's into one vector
+        v1 = self.linear(sum(g1.ndata['mu']))
+        v2 = self.linear(sum(g2.ndata['mu']))
+
+        return F.cosine_similarity(v1, v2)
