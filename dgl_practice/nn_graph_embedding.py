@@ -39,7 +39,7 @@ class SiameseNetwork(nn.Module):
             for i in range(self.iters):
                 g.update_all(
                     message_func=fn.copy_src(src='mu', out='mail'),
-                    reduce_func=fn.sum(msg='mail', out='mu_sum')
+                    reduce_func=fn.sum('mail', 'mu_sum')
                 )
 
                 for node in g.nodes:
