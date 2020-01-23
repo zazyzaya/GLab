@@ -32,7 +32,7 @@ class SiameseNetwork(nn.Module):
         super(SiameseNetwork, self).__init__()
         self.embedder = Embedder
         self.iters=iters
-		self.embed_size = Embedder.embed_size
+        self.embed_size = Embedder.embed_size
         self.linear = nn.Linear(Embedder.embed_size, Embedder.embed_size)
 
     def forward(self,GP): 
@@ -48,8 +48,8 @@ class SiameseNetwork(nn.Module):
                 g.ndata['mu'] = self.embedder(g.ndata['x'].float(), g.ndata['mu_sum'])
         
         # Turn sum of mu's into one vector
-        v1 = self.linear(sum(GP.g1.ndata['mu'])).view(1,embed_size)
-        v2 = self.linear(sum(GP.g2.ndata['mu'])).view(1,embed_size)
+        v1 = self.linear(sum(GP.g1.ndata['mu'])).view(1,self.embed_size)
+        v2 = self.linear(sum(GP.g2.ndata['mu'])).view(1,self.embed_size)
         sim = F.cosine_similarity(v1, v2)
 
         return sim
