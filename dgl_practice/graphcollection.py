@@ -18,18 +18,63 @@ class GraphCollection():
         *_node_attributes -- vector of attributes for the node at line i
         *_node_labels -- labels for node at line i
     '''
-    def __init__(self, fpath):
+    def __init__(self, fpath, train_ratio=0.60):
         self.root = fpath
         self.graphs = {}
         self.__build_graph_collection()
+        
+        self.train_idx = train_ratio
+        self.test_idx = (1-train_ratio)/2 + train_ratio
+        
+        self.n_graphs = {}
+        for k in self.graphs.keys():
+            self.n_graphs[k] = len(self.graphs[k])
 
+        self.n_graphs['total'] = sum([v for v in self.n_graphs.values()])
+
+
+    ''' Return the first train_ratio percent of graphs in each class
+    '''
+    def get_train(self):
+        ret = {}
+        for k,v in self.graphs.items():
+            ret[k] = v[0:int(len(v)*self.train_idx)]
+
+        return ret
+
+
+    ''' Return the graphs between train_ratio and 1-(train_ratio/2)
+    '''
+    def get_test(self):
+        ret = {}
+        for k,v in self.graphs.items():
+            n = len(v)
+            ret[k] = v[int(self.train_idx*n):int(self.test_idx*n)]
+
+        return ret
+
+
+    ''' Return graphs used for neither train nor test
+    '''
+    def get_validate(self):
+        ret = {}
+        for k,v in self.graphs.items():
+            n = len(v)
+            ret[k] = v[int(self.test_idx*n):]
+
+        return ret
+
+
+    ''' Takes networkx graph and converts it to a dgl graph then 
+        adds to the dict of all graphs indexed by label
+    '''
     def add_graph(self, nxg, l, edge_labels=[]):
         g = DGLGraph()
 
         if len(edge_labels):
-            g.from_networkx(nxg, edge_attrs=edge_labels)
+            g.from_networkx(nxg, edge_attrs=edge_labels, node_attrs=['x'])
         else:
-            g.from_networkx(nxg)
+            g.from_networkx(nxg, node_attrs=['x'])
 
         if l in self.graphs:
             self.graphs[l].append(g)
@@ -37,6 +82,9 @@ class GraphCollection():
         else:
             self.graphs[l] = [g]
 
+
+    ''' Builds this object with graphs in the specified directory 
+    '''
     def __build_graph_collection(self):
         prefix = self.root.split(os.path.sep)[-1]
         a = open(os.path.join(self.root, prefix + '_A.txt'), 'r').read().split('\n')
@@ -60,12 +108,12 @@ class GraphCollection():
                     e += 1
                     u, v = [int(x) for x in a[e].split(', ')]
                 
-                self.add_graph(g, gl[gid], edge_labels=['label'])
+                self.add_graph(g, int(gl[gid]), edge_labels=['label'])
                 g = nx.Graph()
                 gid = int(gi[i])
 
             attrs = np.fromstring(na[i] + ', ' + nl[i], sep=', ')
-            g.add_node(i+1, attr_dict={'x': attrs})
+            g.add_node(i+1, x=attrs)
 
         # Need to explicitly add the last graph, as this block doesn't run in the above loop
         # I know it's ugly. I'm terribly sorry.
@@ -74,7 +122,3 @@ class GraphCollection():
             g.add_edge(u, v, label=int(el[e])) # For now, just assume a single digit
             e += 1
             u, v = [int(x) for x in a[e].split(', ')]
-            
-
-GraphCollection('..\\data\\AIDS')
-print('nice')
