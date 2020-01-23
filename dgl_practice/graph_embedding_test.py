@@ -23,12 +23,12 @@ WEIGHTS = 'weights.dat'
 GC = GraphCollection(os.path.join('..', 'data', 'AIDS'))
 
 # Build model
-embedding = GEModel()#.cuda()
+embedding = GEModel(embed_size=35)#.cuda()
 siamese = SiameseNetwork(embedding)#.cuda()
 
 # Build optimizer. Paper recommends Adam w lr=0.0001
 loss_fn = nn.MSELoss()
-opt = optim.Adam(siamese.parameters(), lr=0.0001)
+opt = optim.Adadelta(siamese.parameters(), lr=0.0001)
 
 train = GC.get_train()
 sizes = (len(train[0])-1, len(train[1])-1)
