@@ -19,16 +19,20 @@ NUM_EPOCHS = 100
 BATCH_SIZE = 1000
 WEIGHTS = 'weights.dat'
 
+# Same as in paper
+EMBED_SIZE = 64
+CONVS = 5
+
 # Build graph collection
 GC = GraphCollection(os.path.join('..', 'data', 'AIDS'))
 
 # Build model
 embedding = GEModel(embed_size=35)#.cuda()
-siamese = SiameseNetwork(embedding)#.cuda()
+siamese = SiameseNetwork(embedding, iters=CONVS)#.cuda()
 
 # Build optimizer. Paper recommends Adam w lr=0.0001
 loss_fn = nn.MSELoss()
-opt = optim.Adadelta(siamese.parameters(), lr=0.0001)
+opt = optim.Adam(siamese.parameters(), lr=0.0001)
 
 train = GC.get_train()
 sizes = (len(train[0])-1, len(train[1])-1)
@@ -45,7 +49,7 @@ def batch(train, sizes):
         g2 = train[c2][randint(0, sizes[c2])]
 
         X.append(GraphPair(g1,g2))
-        y.append(torch.tensor([1 - (c1^c2)]))
+        y.append(torch.tensor([(2*(1 - (c1^c2)))-1]))
 
     return X, y
 
