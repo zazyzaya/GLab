@@ -23,20 +23,6 @@ WEIGHTS = 'weights.dat'
 EMBED_SIZE = 64
 CONVS = 5
 
-# Build graph collection
-GC = GraphCollection(os.path.join('..', 'data', 'AIDS'))
-
-# Build model
-embedding = GEModel(embed_size=35)#.cuda()
-siamese = SiameseNetwork(embedding, iters=CONVS)#.cuda()
-
-# Build optimizer. Paper recommends Adam w lr=0.0001
-loss_fn = nn.MSELoss()
-opt = optim.Adam(siamese.parameters(), lr=0.0001)
-
-train = GC.get_train()
-sizes = (len(train[0])-1, len(train[1])-1)
-
 def batch(train, sizes):
     X = []
     y = []
@@ -53,20 +39,35 @@ def batch(train, sizes):
 
     return X, y
 
-# Finally, train
-for epoch in range(NUM_EPOCHS):
-    X, y = batch(train, sizes)
-    siamese.train()
+if __name__ == '__main__':
+    # Build graph collection
+    GC = GraphCollection(os.path.join('..', 'data', 'AIDS'))
 
-    # Unfortunately, I can't figure out a good way to batch these so we just iterate
-    for i in range(len(X)):
-        yhat = siamese(X[i])
-    
-        loss = loss_fn(y[i], yhat)
-        loss.backward()
-        opt.step()
+    # Build model
+    embedding = GEModel(embed_size=EMBED_SIZE)#.cuda()
+    siamese = SiameseNetwork(embedding, iters=CONVS)#.cuda()
 
-    print(loss.item())
+    # Build optimizer. Paper recommends Adam w lr=0.0001
+    loss_fn = nn.MSELoss()
+    opt = optim.Adam(siamese.parameters(), lr=0.0001)
+
+    train = GC.get_train()
+    sizes = (len(train[0])-1, len(train[1])-1)
+
+    # Finally, train
+    for epoch in range(NUM_EPOCHS):
+        X, y = batch(train, sizes)
+        siamese.train()
+
+        # Unfortunately, I can't figure out a good way to batch these so we just iterate
+        for i in range(len(X)):
+            yhat = siamese(X[i])
+        
+            loss = loss_fn(y[i], yhat)
+            loss.backward()
+            opt.step()
+
+        print(loss.item())
 
 
-torch.save(siamese.state_dict(), WEIGHTS)
+    torch.save(siamese.state_dict(), WEIGHTS)
