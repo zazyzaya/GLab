@@ -15,13 +15,14 @@ import torch.optim as optim
 import torch.nn as nn
 from random import randint
 
-NUM_EPOCHS = 100
-BATCH_SIZE = 1000
+NUM_EPOCHS = 300
+BATCH_SIZE = 10
 WEIGHTS = 'weights.dat'
+DIF_BIAS = 4
 
 # Same as in paper
 EMBED_SIZE = 64
-CONVS = 5
+CONVS = 10
 
 def batch(train, sizes):
     X = []
@@ -30,6 +31,10 @@ def batch(train, sizes):
         # Randomly select two graphs
         c1 = randint(0,1)
         c2 = randint(0,1)
+
+        # Bias samples to pick more different than same
+        if c1 == c2 and randint(1,DIF_BIAS) == 1:
+            c1 = abs(c2-1)
 
         g1 = train[c1][randint(0, sizes[c1])]
         g2 = train[c2][randint(0, sizes[c2])]
@@ -60,14 +65,18 @@ if __name__ == '__main__':
         siamese.train()
 
         # Unfortunately, I can't figure out a good way to batch these so we just iterate
+        avg = []
+        opt.zero_grad()
         for i in range(len(X)):
             yhat = siamese(X[i])
         
             loss = loss_fn(y[i], yhat)
             loss.backward()
-            opt.step()
+            avg.append(loss.item())
 
-        print(loss.item())
+        opt.step()
 
+        avg = sum(avg)/BATCH_SIZE
+        print(epoch, avg)
 
     torch.save(siamese.state_dict(), WEIGHTS)
