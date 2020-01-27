@@ -15,7 +15,7 @@ import torch.optim as optim
 import torch.nn as nn
 from random import randint
 
-NUM_EPOCHS = 300
+NUM_EPOCHS = 1000
 BATCH_SIZE = 10
 WEIGHTS = 'weights.dat'
 DIF_BIAS = 4
@@ -78,5 +78,9 @@ if __name__ == '__main__':
 
         avg = sum(avg)/BATCH_SIZE
         print(epoch, avg)
+
+        # Backup as it goes
+        if epoch % 100 == 0:
+            torch.save(siamese.state_dict(), WEIGHTS)
 
     torch.save(siamese.state_dict(), WEIGHTS)
