@@ -38,11 +38,12 @@ def load_pmfs():
 ''' Builds clusters and saves their center pdf and influence (rho) to a dict
 	for each kind of node (local & non-local)
 '''
-def build_pmfs():
-	g = load_graph_from_file()
+def build_pmfs(aggregate=True, g=None):
+	if g == None:	
+		g = load_graph_from_file()
 	
 	print("Partitioning nodes")
-	ldata, nldata = partition_edges(g)
+	ldata, nldata = partition_edges(g, aggregate=aggregate)
 
 
 	names = ['local', 'non-local']
@@ -88,9 +89,45 @@ def build_pmfs():
 '''
 def normalize(d):
 	for k,v in d.items():
-		if sum(v) != 0:	
-			d[k] = [x/sum(v) for x in v] 
+		s = np.sum(v) 
+		if s:	
+			d[k] = np.divide(v, s)
 
+''' Treats local-nonlocal connection pairs as features, rather than aggregating
+	all connections from a given node
+'''
+def seperate_edges(g, n, d={}, collect_in_edges=True):
+	o_edges = [e for e in g.out_edges([n])]
+
+	all_edges=[o_edges]
+	if collect_in_edges:
+		i_edges = [e for e in g.in_edges([n])]
+		all_edges.append(i_edges)
+
+	i = 0
+	names = ['out', 'in']
+	for edges in all_edges:
+		if not edges: 
+			continue
+		
+		x,y = edges.pop()
+		ret_dict = g[x][y]
+		
+		if str((x,y)) not in d:
+			d[str((x,y))] = {}
+
+		if 'last_ts' in ret_dict:
+			ret_dict.pop('last_ts')
+
+		for k,v in ret_dict.items():
+			ret_dict[k] = np.array(v)
+
+		normalize(ret_dict)
+		d[str((x,y))][names[i]] = ret_dict
+
+		i += 1
+
+	
 
 ''' Aggregate outbound edges of each node
 '''
@@ -104,11 +141,10 @@ def aggregate_edges(g, n, d={}, collect_in_edges=True):
 		
 
 	i = 0
-	names = ['out', 'in']
 	d[n] = {}
-	
+	names = ['out', 'in']	
 	for edges in all_edges:
-		if len(edges) == 0:
+		if not edges:
 			continue
 
 		# For ease of adding arrays, convert to np arrays 
@@ -129,8 +165,8 @@ def aggregate_edges(g, n, d={}, collect_in_edges=True):
 				nd.pop('last_ts')
 
 			for k,v in nd.items():
-				ret_dict[k] += np.array(v)
-		
+				ret_dict[k] += v
+	
 		normalize(ret_dict)
 		d[n][names[i]] = ret_dict	
 	
@@ -140,7 +176,7 @@ def aggregate_edges(g, n, d={}, collect_in_edges=True):
 
 ''' Builds a list of data vectors for each class of node: local & non-local
 '''
-def partition_edges(g):
+def partition_edges(g, aggregate=True):
 	nlocal = []
 	nnotlocal = []
 
@@ -155,10 +191,16 @@ def partition_edges(g):
 	nlocal_nodes = {}
 
 	for n in nlocal:
-		aggregate_edges(g, n, d=local_nodes)	
+		if aggregate:
+			aggregate_edges(g, n, d=local_nodes)	
+		else:
+			seperate_edges(g, n, d=local_nodes)
 			
 	for n in nnotlocal:
-		aggregate_edges(g, n, d=nlocal_nodes)	
+		if aggregate:	
+			aggregate_edges(g, n, d=nlocal_nodes)	
+		else:
+			seperate_edges(g, n, d=nlocal_nodes)
 
 
 	return local_nodes, nlocal_nodes
