@@ -26,6 +26,7 @@ PROTO_DICT = {
 	'icmp': 3
 }
 
+
 ''' Streams in json objects to load into memory one at a time so not overwhealmed
 '''
 def node_streamer(fname):

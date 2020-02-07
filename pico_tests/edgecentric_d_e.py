@@ -3,6 +3,33 @@ from edgecentric_c import load_pmfs, partition_edges
 from math import log
 import datetime as dt
 
+''' Jensen-Shannon divergence. Smoothed version of KL 
+'''
+def JSD(v, C):
+	M = []
+	ret = 0
+	for i in range(len(v)):
+		M.append(0.5 * (v[i] + C[i]))
+
+	for i in range(len(v)):
+		if v[i] == 0 or C[i] == 0:
+			continue 
+
+		ret += 0.5*( v[i] * (log(v[i]) - log(M[i])) )
+		ret += 0.5*( C[i] * (log(C[i]) - log(M[i])) )
+
+	return ret
+
+ONE_OVER_ROOT_2 = 2 ** (-1/2)
+def hellinger(v, C):
+	ret = 0
+	for i in range(len(v)):
+		ret += (v[i] ** (1/2) - C[i] ** (1/2)) ** 2
+
+	ret = ret ** (1/2)
+	return ONE_OVER_ROOT_2 * ret
+	
+
 ''' Given one event v calculate the probability of this occuring
 ''' 
 def probability(v, C):
@@ -10,7 +37,7 @@ def probability(v, C):
 	for x in range(len(v)):
 		ret *= v[x] * C[x]
 
-	return ret
+	return 1-ret
 
 
 ''' Calculates Kullback-Leibler divergence between two prob distros
@@ -24,9 +51,8 @@ KL_ALPHA = 1e-06
 def KL(v, C):
 	ret = 0
 	for x in range(len(v)):
-			
-		# KL Div is undefined for these situations. Authors didn't specify
-		# how to handle them
+		# KL Div is undefined for situations where one value is zero
+		# Authors didn't specify how to handle, so we add a small value 
 		ret += v[x] * (log(v[x]+KL_ALPHA) - log(C[x]+KL_ALPHA))
 
 	return ret
