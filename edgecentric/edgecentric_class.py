@@ -9,71 +9,117 @@ from math import log, floor
 ''' Abstract class to create EdgeCentric graph clusters
 '''
 class EdgeCentricInterface(ABC):
-	def __init__(self, nodefeat='nodetype', edgefeat='relation', mc=20, ic=2, ignore_list=[], edge_ct=None):
+	def __init__(	self, nodetype='nodetype', edgetype='relation', mc=20, 
+					ic=2, ignore_list=[], edge_ct=None, direction_of_interest=0):
+
 		self.MAX_CLUSTERS = mc 
 		self.INIT_CENTERS = ic
-		self.nodefeat = nodefeat
-		self.edgefeat = edgefeat
-		self.ignore_list = ignore_list
+		self.nodetype = nodetype
+		self.edgetype = edgetype
+		self.ignore_list = ignore_list + [edgetype]
+		self.direction_of_interest = direction_of_interest
+
 		if edge_ct:	
 			self.ignore_list.append(edge_ct)
 		
 		self.edge_ct = edge_ct
 
-	def run_all(self, flist, fout='results.json', igraph=None, ograph=None):
+	def run_all(self, flist, cout='clusters.json', fout='results.json', 
+				igraph=None, ograph=None):
+
 		g = None	
+		nb = None
+		et = None
+		
 		if not igraph:	
 			print("Building graph")	
-			g = nx.DiGraph()	
+			g = nx.MultiDiGraph()	
+			nb = dict()
+			et = set()
 			for f in flist:
 				print("Loading: " + f)
-				self.load_edges(f, append_to=g)
+				g, nb, et = self.load_edges(f, append_to=(g, nb, et))
 
 			if ograph:
 				nx.write_gpickle(g, ograph)
+				
+				nbf = open('nb.dat', 'w+')
+				etf = open('et.dat', 'w+')
+
+
+				nbf.write(str(nb))
+				etf.write(str(et))
+
+				nbf.close()
+				etf.close()
+
 		else:
 			print("Loading graph from file")
+			nbf = open('nb.dat', 'r')
+			etf = open('et.dat', 'r')
+	
 			g = nx.read_gpickle(igraph)
+			nb = eval(nbf.read())
+			et = eval(etf.read())
+
+			nbf.close()
+			etf.close()
 			
 
 		print("Clustering")
-		C, db = self.build_pmfs(g)
+		C = self.build_pmfs(g, nb, et)
+		with open(cout, 'w+') as f:
+			f.write(json.dumps(C, indent=4))
 
 		print("Scoring")
-		S = self.score_all_nodes(db, C, g)
+		S = self.score_all_nodes(C, g)
 
 		print(json.dumps(S, indent=4))
 		with open(fout, 'w+') as f:
 			f.write(json.dumps(S, indent=4))
-			
+	
+	''' Loads a graph from a file
+	'''
+	def load_graph(self, fname):
+		return nx.read_gpickle(fname)
 
+	def build_graph(self, flist):
+		g = nx.MultiDiGraph() 
+		nb = dict()
+		et = set()
+
+		for f in flist:
+			g, nb, et = self.load_edges(f, append_to=(g, nb, et))
+
+		return g, nb, et
 	def load_edges(self, fname, append_to=None):
 		streamer = self.__node_streamer(fname)
-
+		
 		if append_to == None:
-			G = nx.DiGraph()
+			G = nx.MultiDiGraph()
+			nb = dict() 
+			et = set()
 		else:
-			G = append_to
+			G, nb, et = append_to
 
 		try:
 			while(True):
-				self.add_edge(G, streamer)
+				self.add_edge(G, streamer, nb, et)
 
 		except(StopIteration):
 			pass
 
-		return G
+		return G, nb, et
 
 
 	''' Method to normalize all distributions in an aggregated super-edge 
 	'''
-	def normalize(self, d):
-		for k, v in d.items():
-			s = np.sum(v)
-			if s:
-				d[k] = np.divide(v,s)
+	def normalize(self, v):
+		s = np.sum(v)
+		if s:
+			v = np.divide(v,s)
 
-		return d
+		return v
 
 
 	''' Helper method for build_pmf
@@ -94,28 +140,44 @@ class EdgeCentricInterface(ABC):
 
 
 	''' Uses X-means clustering to calculate centers and influence for each group of edges 
-	'''
-	def build_pmfs(self, G):
-		db = self.partition_nodes(G)
-	
-		clusters = {}
-		for node_type, relations in db.items():
-			clusters[node_type] = {}
+	'''	
+	def build_pmfs(self, G, nb, et):
+		C = {}
+		keys = []
 
-			for relation, vals in relations.items():
-				clusters[node_type][relation] = {}
-			
-				val_list = vals.values()
-				val_list = list(val_list)
-				for k in val_list[0].keys():
-					if (k in self.ignore_list):
+		for nt, ns in nb.items():
+			C[nt] = {}
+
+			# Build empty relation map
+			relations = {}	
+			for e in et:
+				relations[e] = []
+
+			out_e = [(a,b) for a,b in G.out_edges(ns)]
+		
+			# Sort edges into groups by relation type
+			# Assumes each edge is one relation without duplicates
+			# Ensure this in the add_edge method
+			for u,v in out_e:
+				edges = [e for e in G[u][v].values()]
+				for e in edges:
+					relations[e[self.edgetype]].append(e)
+
+			# Run clustering on edge PMFs for each relation type
+			# Assumes each relation has the same keys
+			for r, edges in relations.items():
+				C[nt][r] = {}
+				
+				for k in edges[0].keys():
+					if k in self.ignore_list:
 						continue
-					
-					print('\t' + k)
-					vec = [sample[k] for sample in vals.values()]
-					clusters[node_type][relation][k] = self.__cluster(vec) 
 
-		return clusters, db
+					print('\t' + k)
+					vec = [self.normalize(e[k]) for e in edges]
+					C[nt][r][k] = self.__cluster(vec)
+
+		return C
+
 
 	''' Strangeness function for statistical divergence. Paper recommends KL divergence
 		so that is the default, but this method may be overridden
@@ -129,24 +191,51 @@ class EdgeCentricInterface(ABC):
 		return ret
 
 
-	def score_node(self, n, pdfs, C, G, scores):
+	def score_node(self, n, nd, C, G):
 		score = 0.0
-		for relation, nodes in pdfs.items():
-			if n in nodes:
-				if self.edge_ct:	
-					f_vr = pdfs[relation][n][self.edge_ct]
-				else:
-					f_vr = 1
+		Doi = EdgeCentricEnum()
 
-				feat_score = 0.0
+		if self.direction_of_interest == Doi.in_edges: 
+			edges = [(u,v) for u,v in G.in_edges(n)]
+		elif self.direction_of_interest == Doi.out_edges:
+			edges = [(u,v) for u,v in G.out_edges(n)]
+		else:
+			edges = [(u,v) for u,v in G.out_edges(n)] + [(u,v) for u,v in G.in_edges(n)]
+
+
+		relations = {}
+		nt = nd[self.nodetype]
+
+		# Build node PDF via simple average (NOTE: could be tweaked?)
+		for u,v in edges:
+			attrs = [v for v in G[u][v].values()]
+			for a in attrs:
+				if a[self.edgetype] not in relations:
+					relations[a[self.edgetype]] = [] 
+
+				relations[a[self.edgetype]].append(a)
+		
+		for r, vals in relations.items():
+			feat_score = 0.0
+			
+			if self.edge_ct:
+				f_vr = sum([v[self.edge_ct] for v in vals])
+			else:
+				f_vr = 1
+
+			
+			for key in C[nt][r].keys():
+				for c_idx in range(len(C[nt][r][key]['influence'])):
+					rho = C[nt][r][key]['influence'][c_idx]
+					ctr = C[nt][r][key]['centers'][c_idx]
 				
-				for key in C[relation].keys():
-					for c_idx in range(len(C[relation][key]['influence'])):
-						rho = C[relation][key]['influence'][c_idx]
-						ctr = C[relation][key]['centers'][c_idx]
-						feat_score += rho * self.strangeness(pdfs[relation][n][key], ctr)
+					pdf = np.array([v[key] for v in vals])
+					pdf = np.average(pdf, axis=0)
+					pdf = self.normalize(pdf)
 
-				score += feat_score * f_vr
+					feat_score += rho * self.strangeness(pdf, ctr)
+
+			score += feat_score * f_vr
 
 		return score
 
@@ -154,27 +243,18 @@ class EdgeCentricInterface(ABC):
 	''' Iterates through all nodes in partitioned dict and gives them all a strangeness
 		score 
 	'''
-	def score_all_nodes(self, db, C, G):
+	def score_all_nodes(self, C, G):
 		scores = {}	
-		for n,dat in G.nodes.data():
-			if dat[self.nodefeat] not in scores:
-				scores[dat[self.nodefeat]] = [] 
+		for n, d in G.nodes.data():
+			if d[self.nodetype] not in scores:
+				scores[d[self.nodetype]] = [] 
+			
+			scores[d[self.nodetype]].append((n, self.score_node(n, d, C, G)))
 
-			scores[dat[self.nodefeat]].append(
-			(
-				n,	
-				self.score_node(
-					n, 
-					db[dat[self.nodefeat]], 
-					C[dat[self.nodefeat]], 
-					G, 
-					scores
-				)
-			))
-
-		for k, v in scores.items():
-			v.sort(key= lambda x: -x[1])
-			scores[k] = v[:200]
+		for nt, v in scores.items():
+			v.sort(key=lambda x:  -x[1])	
+			v = v[:500]
+			scores[nt] = v
 
 		return scores
 
@@ -185,37 +265,18 @@ class EdgeCentricInterface(ABC):
 	def __node_streamer(self, fname):
 		for line in open(fname, 'r'):
 			yield json.loads(line)
-
-	
-	''' Method to merge the edges of a specified node n and place into d into the proper
-		edge class as { nodetype : { relation: { n: { features: [] } }  }} during final 
-		merging stage
-
-		NOTE: By default, method assumes aggregation is done in the add_edge method. 
-		Override this method if more aggregation should occur at this stage, otherwise
-		it assumes exactly 1 edge of each relation type is associated with a node
-	'''
-	def partition_nodes(self, G):
-		ret = {}
-		for u, v, features in G.edges.data():
-			ef = features.pop(self.edgefeat)
-			nf = G.nodes()[u][self.nodefeat]
-
-			if nf in ret:
-				if ef in ret[nf]:
-					ret[nf][ef][u] = self.normalize(features)
-				else:
-					ret[nf][ef] = {u : self.normalize(features)}
-			
-			else:
-				ret[nf] = {ef : {u : self.normalize(features)} }
-
-		return ret
 				
 
 	''' Method which extracts graph data from JSON dict version and adds/merges
 		the edge to the graph during graph construction stage
 	'''
 	@abstractmethod
-	def add_edge(self, G, streamer):
+	def add_edge(self, G, streamer, nb, et):
 		pass
+
+
+class EdgeCentricEnum():
+	def __init__(self):
+		self.out_edges = 0
+		self.in_edges = 1
+		self.both = 2
