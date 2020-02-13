@@ -2,8 +2,9 @@ import datetime as dt
 import networkx as nx
 import re, os
 import numpy as np
+import json
 from math import log, floor
-from edgecentric_class import EdgeCentricInterface
+from edgecentric_class import EdgeCentricInterface, EdgeCentricEnum
 
 # Maps conn_state values to integers
 CONN_DICT = {
@@ -37,10 +38,17 @@ MIN_DUR = 1e-06
 DUR_OFFSET = -1*floor(log(MIN_DUR))
 
 LOG_DIR = os.path.join('/', 'mnt', 'raid0_24TB', 'datasets', 'pico', 'bro')
+EC_ENUM = EdgeCentricEnum()
 
 class EdgeCentricPico(EdgeCentricInterface):
-	def __init__(self, alpha=5, mc=20, ic=2):
-		super().__init__(mc=mc, ic=ic, nodefeat='isLocal', ignore_list=['last_ts'], edge_ct='edge_ct')
+	def __init__(self, alpha=5, mc=20, ic=2, direction_of_interest=EC_ENUM.in_edges):
+		super().__init__(
+			mc=mc, 
+			ic=ic, 
+			nodetype='isLocal', 
+			ignore_list=['last_ts', 'edge_ct'],
+			direction_of_interest=direction_of_interest
+		)
 		self.alpha = alpha
 
 		self.baseline = []
@@ -65,9 +73,10 @@ class EdgeCentricPico(EdgeCentricInterface):
 					self.comprimised.append(os.path.join(LOG_DIR, folder, fname))
 
 
-	def add_edge(self, G, streamer):
+	def add_edge(self, G, streamer, nb, et):
 		edge = next(streamer)
-			
+		old_e = None
+
 		# Have to format out the timestamp to just be a float
 		d = dt.datetime.strptime(edge['ts'], "%Y-%m-%dT%H:%M:%S.%fZ")
 		round_ts = d.timestamp()
@@ -76,11 +85,23 @@ class EdgeCentricPico(EdgeCentricInterface):
 		add_ts = lambda x : x + '-' + str(round_ts)
 
 		# Initialize vectors
-		if (add_ts(edge['id.orig_h']), add_ts(edge['id.resp_h'])) not in G.edges():
-			oIsLocal = edge['local_orig']
-			rIsLocal = edge['local_resp']
-			G.add_node(add_ts(edge['id.orig_h']), isLocal=oIsLocal)	
+		if not G.has_edge(add_ts(edge['id.orig_h']), add_ts(edge['id.resp_h'])):
+			oIsLocal = '1' if edge['local_orig'] else '0'
+			rIsLocal = '1' if edge['local_resp'] else '0'
+			G.add_node(add_ts(edge['id.orig_h']), isLocal=oIsLocal)
 			G.add_node(add_ts(edge['id.resp_h']), isLocal=rIsLocal)
+
+			if oIsLocal not in nb:
+				nb[oIsLocal] = set()
+			if rIsLocal not in nb:
+				nb[rIsLocal] = set()
+
+			# Add nodes to nodebunches in respective groups
+			nb[oIsLocal].add(add_ts(edge['id.orig_h']))
+			nb[rIsLocal].add(add_ts(edge['id.orig_h']))
+	
+			# Right now, only one kind of relation
+			et.add('relation1')
 
 			proto_vec = [0.0] * len(PROTO_DICT)
 			conn_vec = [0.0] * len(CONN_DICT)
@@ -98,10 +119,21 @@ class EdgeCentricPico(EdgeCentricInterface):
 			last_ts = None
 			edge_ct = 0
 
+			G.add_edge(
+				add_ts(edge['id.orig_h']), 
+				add_ts(edge['id.resp_h']), 
+				relation='relation1'
+			)
+
+			# Now define old_e as the current dictionary 
+			old_e = G[add_ts(edge['id.orig_h'])][add_ts(edge['id.resp_h'])][0]
+
+		
 		# Or get current vectors
 		else:
-			old_e = G.edges()[add_ts(edge['id.orig_h']), add_ts(edge['id.resp_h'])]
-
+			# Don't have to worry about edge id. There should only ever be 1 edge 
+			# between nodes (for now)
+			old_e = G[add_ts(edge['id.orig_h'])][add_ts(edge['id.resp_h'])][0]
 			proto_vec = old_e['proto_vec']
 			conn_vec = old_e['conn_vec']
 			dur_vec = old_e['dur_vec']
@@ -148,25 +180,50 @@ class EdgeCentricPico(EdgeCentricInterface):
 			td_vec[idx] += 1
 
 		# Finally, replace edge with aggregated version
-		G.add_edge(	
-			add_ts(edge['id.orig_h']), add_ts(edge['id.resp_h']),
-			relation='relation1',	
-			orig_p_vec=orig_p_vec, 
-			resp_p_vec=resp_p_vec,
-			proto_vec=proto_vec,
-			orig_pkt_vec=orig_pkt_vec,
-			resp_pkt_vec=resp_pkt_vec,
-			dur_vec=dur_vec,
-			conn_vec=conn_vec, 
-			ts_vec=ts_vec, 
-			td_vec=td_vec,
-			last_ts=d.timestamp(),
-			edge_ct=edge_ct+1
-		)
-
+		old_e['orig_p_vec'] = orig_p_vec
+		old_e['resp_p_vec'] = resp_p_vec
+		old_e['proto_vec'] = proto_vec
+		old_e['orig_pkt_vec'] = orig_pkt_vec
+		old_e['resp_pkt_vec'] = resp_pkt_vec
+		old_e['dur_vec'] = dur_vec
+		old_e['conn_vec'] = conn_vec 
+		old_e['ts_vec'] = ts_vec
+		old_e['td_vec'] = td_vec
+		old_e['last_ts'] = d.timestamp()
+		old_e['edge_ct'] = edge_ct+1
+		
 		# Not really necessary but just because
 		return G
 
-if __name__ == '__main__':
+if __name__ == '__main__':	
 	EC = EdgeCentricPico(alpha=100)
-	EC.run_all()
+
+	print("Loading graph")
+	g, nb, et = EC.build_graph(EC.baseline)
+
+	print("Clustering")
+	C = EC.build_pmfs(g, nb, et)
+
+	print("Loading comprimised graph")
+	gp, _, __ = EC.build_graph(EC.comprimised)
+
+	print("Scoring...")
+	S = EC.score_all_nodes(C, gp)
+
+	scores = json.dumps(S, indent=4)
+	print(scores)
+	with open('results.json', 'w+') as f:
+		f.write(scores)
+
+
+	'''
+	print("Loading graph")	
+	G = EC.load_graph('graph.pkl')
+	with open('clusters.json', 'r') as f:
+		C = json.loads(f.read())
+
+	print("scoring nodes")
+	s = EC.score_all_nodes(C,G)
+	with open('results.json', 'w+') as f:
+		f.write(json.dumps(s, indent=4))
+	'''
