@@ -5,4 +5,4 @@ So far, I have only implemented Q-learning (rather weakly at that) but the resul
 
 Without RL          |  With RL
 :-------------------------:|:-------------------------:
-![Without RL](Without_RL.png) | ![With RL](With_RL.png)
+![Without RL](img/Without_RL.png) | ![With RL](img/With_RL.png)
