@@ -3,11 +3,15 @@ import dgl
 import dgl.data
 import numpy as np
 import networkx as nx
+import multiprocessing
 import matplotlib.pyplot as plt
 
-from sklearn.cluster import AgglomerativeClustering, OPTICS
-from sklearn.metrics import balanced_accuracy_score
+from node2vec import Node2Vec
 from node2vec_RL_class import Node2VecRL
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import balanced_accuracy_score
+
+NUM_CPU = 16 if multiprocessing.cpu_count() > 8 else 4
 
 ''' Generates networkx graphs from Coauthor dataset in dgl library
 '''
@@ -23,15 +27,22 @@ def coauthor_iter():
     for g in range(len(graphs)):
         yield graphs[g].to_networkx(node_attrs=['feat', 'label'])
 
-def embed_karate(g):
-    # Best possible params after being tuned. Hits approx 0.76 Acc normally
-    ntv = Node2VecRL(g, dimensions=4, walk_length=10, num_walks=16, workers=1, quiet=True)
+def embed_karate(g, rl=True):
+    # Both have best possible conditions after being tuned; note w/o RL, more dimensions are required and acc is lower
+    if rl:
+        ntv = Node2VecRL(g, dimensions=4, walk_length=10, num_walks=16, workers=NUM_CPU, quiet=True)
+    else:
+        ntv = Node2Vec(g, dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU, quiet=True)
+
     model = ntv.fit(batch_words=4, window=10, min_count=1)
 
     return model
 
-def embed_coauthor(g):
-    ntv = Node2VecRL(g, dimensions=4, walk_length=10, num_walks=16, workers=1)
+def embed_coauthor(g, rl=True):
+    if rl:
+        ntv = Node2VecRL(g, dimensions=4, walk_length=10, num_walks=16, workers=NUM_CPU)
+    else:
+        ntv = Node2Vec(g, dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU)
 
     print("fitting..")
     model = ntv.fit(batch_words=4, window=10, min_count=1)
@@ -71,7 +82,10 @@ def coauthor():
     caIter = coauthor_iter()
     g = next(caIter)
 
-    m = embed_coauthor(g)
+    # Make the graph smaller so it's easier to work with
+    # g = nx.ego_graph(g, 0, radius=10)
+
+    m = embed_coauthor(g, rl=False)
 
     print("Clustering...")
     a = AgglomerativeClustering().fit(m.wv.vectors)
