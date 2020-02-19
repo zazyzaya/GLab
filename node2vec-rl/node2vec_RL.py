@@ -1,5 +1,6 @@
 import sys
 import dgl
+import time
 import dgl.data
 import numpy as np
 import networkx as nx
@@ -7,11 +8,16 @@ import multiprocessing
 import matplotlib.pyplot as plt
 
 from node2vec import Node2Vec
+from sklearn.svm import LinearSVC
+from sklearn.utils import shuffle
 from node2vec_RL_class import Node2VecRL
 from sklearn.cluster import AgglomerativeClustering
-from sklearn.metrics import balanced_accuracy_score
+from sklearn.metrics import balanced_accuracy_score, v_measure_score
 
-NUM_CPU = 16 if multiprocessing.cpu_count() > 8 else 4
+NUM_CPU = 16 if multiprocessing.cpu_count() > 8 else 1
+TRAIN_RATIO = 0.7
+VALIDATE_RATIO = 0.15
+TEST_RATIO = 0.15
 
 ''' Generates networkx graphs from Coauthor dataset in dgl library
 '''
@@ -30,7 +36,7 @@ def coauthor_iter():
 def embed_karate(g, rl=True):
     # Both have best possible conditions after being tuned; note w/o RL, more dimensions are required and acc is lower
     if rl:
-        ntv = Node2VecRL(g, dimensions=4, walk_length=10, num_walks=16, workers=NUM_CPU, quiet=True)
+        ntv = Node2VecRL(g, dimensions=2, walk_length=10, num_walks=16, workers=NUM_CPU, quiet=True)
     else:
         ntv = Node2Vec(g, dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU, quiet=True)
 
@@ -50,35 +56,47 @@ def embed_coauthor(g, rl=True):
 
     return model
 
-def katate_club():
+def karate_club(rl=True, test=False):
     gi = karate_iter()
     g = next(gi)
 
     ta = 0
-    for i in range(10):
-        m = embed_karate(g)
+    for i in range(25):
+        m = embed_karate(g, rl=rl)
 
-        a = AgglomerativeClustering().fit(m.wv.vectors)
+        train = int(len(m.wv.vectors) * 0.4)
+        validate = train+int(len(m.wv.vectors) * 0.4) if (not test) else -1
+
         y = np.array([d['label'].item() for _,d in g.nodes.data()])
-        y_hat = a.labels_
+        X, y = shuffle(m.wv.vectors, y)
 
-        acc = balanced_accuracy_score(y, y_hat)
+        svm = LinearSVC(C=50, max_iter=1e06, tol=1e-06)
+        svm.fit(X[:train], y[:train])
+
+        #a = AgglomerativeClustering().fit(m.wv.vectors)
+        #y_hat = a.labels_
+        y_hat = svm.predict(X[train:validate])
+
+        acc = balanced_accuracy_score(y[train:validate], y_hat)
+        
+        '''  No longer necessary 
         if acc < 0.5:
             acc = 1-acc
             y_hat = [(i-1)*-1 for i in y_hat]
-        
+        '''
+
         ta += acc
 
-        print("\tAccuracy: " + str(acc))
-
         if show:
-            plt.scatter(m.wv.vectors[:, 0], m.wv.vectors[:,1], c=y, marker='o', cmap=plt.get_cmap('cool'))
-            plt.scatter(m.wv.vectors[:, 0], m.wv.vectors[:,1], c=y_hat, marker='x', cmap=plt.get_cmap('cool'))
+            print("\tAccuracy: " + str(acc))
+
+            plt.scatter(X[:, 0], X[:,1], c=y, marker='o', cmap=plt.get_cmap('cool'))
+            plt.scatter(X[train:validate, 0], X[train:validate,1], c=y_hat, marker='x', cmap=plt.get_cmap('cool'))
             plt.show()
 
-    print('Avg  acc: ' + str(ta/10))	
+    print('Avg  acc: ' + str(ta/25))	
 
-def coauthor():
+def coauthor(rl=True, test=False):
     caIter = coauthor_iter()
     g = next(caIter)
 
@@ -86,18 +104,19 @@ def coauthor():
     # g = nx.ego_graph(g, 0, radius=10)
 
     m = embed_coauthor(g, rl=False)
+    train = int(len(m.wv.vectors) * TRAIN_RATIO)
+    validate = train+int(len(m.wv.vectors) * VALIDATE_RATIO) if (not test) else -1
 
-    print("Clustering...")
-    a = AgglomerativeClustering().fit(m.wv.vectors)
+    print("Training SVM...")
     y = np.array([d['label'].item() for _,d in g.nodes.data()])
-    y_hat = a.labels_
+    X, y = shuffle(m.wv.vectors, y)
+
+    svm = LinearSVC(C=50, max_iter=1e06, tol=1e-06)
+    svm.fit(X[:train], y[:train])
+    y_hat = svm.predict(X[train:validate])
 
     acc = balanced_accuracy_score(y, y_hat)
-    if acc < 0.5:
-        acc = 1-acc
-        
-        if show:
-            y_hat = [(i-1)*-1 for i in y_hat]
+
     
     print("Accuracy: " + str(acc))
     if show:
@@ -109,4 +128,8 @@ show = False
 if len(sys.argv) > 1 and sys.argv[1] in ['graph', 'plot', 'show']:
     show = True
 
-coauthor()
+start = time.time()
+coauthor(rl=True, test=True)
+end = time.time()
+
+print("Time elapsed: " + str(end - start))
