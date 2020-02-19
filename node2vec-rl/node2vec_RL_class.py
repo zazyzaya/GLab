@@ -188,7 +188,15 @@ def update_q(d, source, dest, pk, nk, alpha, t):
     sn = d[source][nk]
     dn = d[dest][nk]
 
+    sidx = np.argwhere(sn == dest)
+    # Don't reward visiting the same node over and over
+    if d[source][pk][sidx] > 0:
+        d[source][pk][sidx] -= 1
+    
     # Find the number of neighbors the two share (want to reward exploring nodes closely connected to each other)
-    reward = np.intersect1d(sn, dn).size - 1
-    d[source][pk][np.argwhere(sn == dest)] += alpha(t) * (reward - d[source][pk][np.argwhere(sn == dest)])
-    d[dest][pk][np.argwhere(dn == source)] += alpha(t) * (reward - d[dest][pk][np.argwhere(dn == source)])
+    else:
+        didx = np.argwhere(dn == source)
+        
+        reward = np.intersect1d(sn, dn).size - 1
+        d[source][pk][sidx] += alpha(t) * (reward - d[source][pk][sidx])
+        d[dest][pk][didx] += alpha(t) * (reward - d[dest][pk][didx])
