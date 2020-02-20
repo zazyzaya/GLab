@@ -11,6 +11,7 @@ from node2vec import Node2Vec
 from sklearn.svm import LinearSVC
 from sklearn.utils import shuffle
 from node2vec_RL_class import Node2VecRL
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import balanced_accuracy_score, v_measure_score
 
@@ -48,7 +49,7 @@ def embed_coauthor(g, rl=True):
     if rl:
         ntv = Node2VecRL(g, dimensions=4, walk_length=10, num_walks=16, workers=NUM_CPU)
     else:
-        ntv = Node2Vec(g, dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU)
+        ntv = Node2Vec(g, dimensions=64, walk_length=16, num_walks=16, workers=NUM_CPU)
 
     print("fitting..")
     model = ntv.fit(batch_words=4, window=10, min_count=1)
@@ -101,22 +102,21 @@ def coauthor(rl=True, test=False):
     g = next(caIter)
 
     # Make the graph smaller so it's easier to work with
-    # g = nx.ego_graph(g, 0, radius=10)
+    g = nx.ego_graph(g, 0, radius=4)
 
     m = embed_coauthor(g, rl=False)
     train = int(len(m.wv.vectors) * TRAIN_RATIO)
     validate = train+int(len(m.wv.vectors) * VALIDATE_RATIO) if (not test) else -1
 
-    print("Training SVM...")
+    print("Training RFC...")
     y = np.array([d['label'].item() for _,d in g.nodes.data()])
     X, y = shuffle(m.wv.vectors, y)
 
-    svm = LinearSVC(C=50, max_iter=1e06, tol=1e-06)
-    svm.fit(X[:train], y[:train])
-    y_hat = svm.predict(X[train:validate])
+    rfc = RandomForestClassifier(class_weight='balanced')
+    rfc.fit(X[:train], y[:train])
 
-    acc = balanced_accuracy_score(y, y_hat)
-
+    y_hat = rfc.predict(X[train:validate])
+    acc = balanced_accuracy_score(y[train:validate], y_hat)
     
     print("Accuracy: " + str(acc))
     if show:
@@ -129,7 +129,7 @@ if len(sys.argv) > 1 and sys.argv[1] in ['graph', 'plot', 'show']:
     show = True
 
 start = time.time()
-coauthor(rl=True, test=True)
+coauthor(rl=False, test=False)
 end = time.time()
 
 print("Time elapsed: " + str(end - start))
