@@ -7,6 +7,7 @@ import networkx as nx
 import multiprocessing
 import matplotlib.pyplot as plt
 
+from attr2vec import Attr2Vec
 from node2vec import Node2Vec
 from sklearn.svm import LinearSVC
 from sklearn.utils import shuffle
@@ -15,7 +16,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import balanced_accuracy_score, v_measure_score
 
-NUM_CPU = 16 if multiprocessing.cpu_count() > 8 else 1
+NUM_CPU = 16 if multiprocessing.cpu_count() > 8 else 8
 TRAIN_RATIO = 0.7
 VALIDATE_RATIO = 0.15
 TEST_RATIO = 0.15
@@ -37,7 +38,7 @@ def coauthor_iter():
 def embed_karate(g, rl=True):
     # Both have best possible conditions after being tuned; note w/o RL, more dimensions are required and acc is lower
     if rl:
-        ntv = Node2VecRL(g, dimensions=2, walk_length=10, num_walks=16, workers=NUM_CPU, quiet=True)
+        ntv = Node2Vec(g, dimensions=2, walk_length=10, num_walks=16, workers=NUM_CPU)
     else:
         ntv = Node2Vec(g, dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU, quiet=True)
 
@@ -47,12 +48,12 @@ def embed_karate(g, rl=True):
 
 def embed_coauthor(g, rl=True):
     if rl:
-        ntv = Node2VecRL(g, dimensions=4, walk_length=10, num_walks=16, workers=NUM_CPU)
+        ntv = Attr2Vec(g, ['feat'], dimensions=64, walk_length=32, num_walks=64, workers=NUM_CPU)
     else:
-        ntv = Node2Vec(g, dimensions=64, walk_length=16, num_walks=16, workers=NUM_CPU)
+        ntv = Node2Vec(g, dimensions=64, walk_length=32, num_walks=64, workers=NUM_CPU)
 
     print("fitting..")
-    model = ntv.fit(batch_words=4, window=10, min_count=1)
+    model = ntv.fit(batch_words=NUM_CPU, window=10, min_count=1)
     model.save('word_2_vec.dat')
 
     return model
@@ -102,9 +103,9 @@ def coauthor(rl=True, test=False):
     g = next(caIter)
 
     # Make the graph smaller so it's easier to work with
-    g = nx.ego_graph(g, 0, radius=4)
+    g = nx.ego_graph(g, 0, radius=3)
 
-    m = embed_coauthor(g, rl=False)
+    m = embed_coauthor(g, rl=rl)
     train = int(len(m.wv.vectors) * TRAIN_RATIO)
     validate = train+int(len(m.wv.vectors) * VALIDATE_RATIO) if (not test) else -1
 
@@ -125,11 +126,19 @@ def coauthor(rl=True, test=False):
         plt.show()
 
 show = False
-if len(sys.argv) > 1 and sys.argv[1] in ['graph', 'plot', 'show']:
+if len(sys.argv) > 1 and not set(sys.argv).isdisjoint(set(['graph', 'plot', 'show', 's'])):
     show = True
 
-start = time.time()
-coauthor(rl=False, test=False)
-end = time.time()
+isRL = False
+if len(sys.argv) > 1 and not set(sys.argv).isdisjoint(set(['rl', 'r'])):
+    isRL = True
 
+isTest = False
+if len(sys.argv) > 1 and not set(sys.argv).isdisjoint(set(['test', 't'])):
+    isTest=True    
+
+# Uncomment for time tests
+start = time.time()
+coauthor(rl=isRL, test=isTest)
+end = time.time()
 print("Time elapsed: " + str(end - start))
