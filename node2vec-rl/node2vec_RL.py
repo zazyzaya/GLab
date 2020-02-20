@@ -48,9 +48,9 @@ def embed_karate(g, rl=True):
 
 def embed_coauthor(g, rl=True):
     if rl:
-        ntv = Attr2Vec(g, ['feat'], dimensions=64, walk_length=32, num_walks=64, workers=NUM_CPU)
+        ntv = Attr2Vec(g, ['feat'], dimensions=80, walk_length=32, num_walks=16, workers=NUM_CPU)
     else:
-        ntv = Node2Vec(g, dimensions=64, walk_length=32, num_walks=64, workers=NUM_CPU)
+        ntv = Node2Vec(g, dimensions=80, walk_length=32, num_walks=16, workers=NUM_CPU)
 
     print("fitting..")
     model = ntv.fit(batch_words=NUM_CPU, window=10, min_count=1)
@@ -109,6 +109,7 @@ def coauthor(rl=True, test=False):
     train = int(len(m.wv.vectors) * TRAIN_RATIO)
     validate = train+int(len(m.wv.vectors) * VALIDATE_RATIO) if (not test) else -1
 
+    # TODO Try this with KNN later
     print("Training RFC...")
     y = np.array([d['label'].item() for _,d in g.nodes.data()])
     X, y = shuffle(m.wv.vectors, y)
