@@ -16,7 +16,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import balanced_accuracy_score, v_measure_score
 
-NUM_CPU = 16 if multiprocessing.cpu_count() > 8 else 8
+NUM_CPU = 16 if multiprocessing.cpu_count() > 8 else 4
 TRAIN_RATIO = 0.7
 VALIDATE_RATIO = 0.15
 TEST_RATIO = 0.15
@@ -35,7 +35,7 @@ def coauthor_iter():
     for g in range(len(graphs)):
         yield graphs[g].to_networkx(node_attrs=['feat', 'label'])
 
-def amazon_iter():
+def ppi_iter():
     graphs = dgl.data.AmazonCoBuy('computers')
 
     l = len(graphs)
@@ -66,7 +66,7 @@ def embed_coauthor(g, rl=True):
 
     return model
 
-def embed_amazon(g, rl=True):
+def embed_ppi(g, rl=True):
     if rl:
         ntv = Attr2Vec(g, ['feat'], dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU)
     else:
@@ -74,7 +74,11 @@ def embed_amazon(g, rl=True):
 
     print("fitting..")
     model = ntv.fit(batch_words=NUM_CPU, window=10, min_count=1)
-    model.save('word_2_vec.dat')
+    
+    if rl:
+        model.save('word_2_vec_rl.dat')
+    else:
+        model.save('word_2_vec.dat')
 
     return model
 
@@ -146,14 +150,14 @@ def coauthor(rl=True, test=False):
         plt.scatter(m.wv.vectors[:, 0], m.wv.vectors[:,1], c=y_hat, marker='x', cmap=plt.get_cmap('cool'))
         plt.show()
 
-def amazon(rl=True, test=False):
-    i = amazon_iter()
+def ppi(rl=True, test=False):
+    i = ppi_iter()
     g = next(i)
 
     # Make the graph smaller so it's easier to work with
-    g = nx.ego_graph(g, 0, radius=3)
+    g = nx.ego_graph(g, 0, radius=2)
 
-    m = embed_amazon(g, rl=rl)
+    m = embed_ppi(g, rl=rl)
     train = int(len(m.wv.vectors) * TRAIN_RATIO)
     validate = train+int(len(m.wv.vectors) * VALIDATE_RATIO) if (not test) else -1
 
@@ -189,6 +193,6 @@ if len(sys.argv) > 1 and not set(sys.argv).isdisjoint(set(['test', 't'])):
 
 # Uncomment for time tests
 start = time.time()
-amazon(rl=isRL, test=isTest)
+ppi(rl=isRL, test=isTest)
 end = time.time()
 print("Time elapsed: " + str(end - start))
