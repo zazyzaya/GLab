@@ -35,6 +35,14 @@ def coauthor_iter():
     for g in range(len(graphs)):
         yield graphs[g].to_networkx(node_attrs=['feat', 'label'])
 
+def amazon_iter():
+    graphs = dgl.data.AmazonCoBuy('computers')
+
+    l = len(graphs)
+    for g in range(l):
+        yield graphs[g].to_networkx(node_attrs=['feat', 'label'])
+
+
 def embed_karate(g, rl=True):
     # Both have best possible conditions after being tuned; note w/o RL, more dimensions are required and acc is lower
     if rl:
@@ -51,6 +59,18 @@ def embed_coauthor(g, rl=True):
         ntv = Attr2Vec(g, ['feat'], dimensions=80, walk_length=32, num_walks=16, workers=NUM_CPU)
     else:
         ntv = Node2Vec(g, dimensions=80, walk_length=32, num_walks=16, workers=NUM_CPU)
+
+    print("fitting..")
+    model = ntv.fit(batch_words=NUM_CPU, window=10, min_count=1)
+    model.save('word_2_vec.dat')
+
+    return model
+
+def embed_amazon(g, rl=True):
+    if rl:
+        ntv = Attr2Vec(g, ['feat'], dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU)
+    else:
+        ntv = Node2Vec(g, dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU)
 
     print("fitting..")
     model = ntv.fit(batch_words=NUM_CPU, window=10, min_count=1)
@@ -126,6 +146,35 @@ def coauthor(rl=True, test=False):
         plt.scatter(m.wv.vectors[:, 0], m.wv.vectors[:,1], c=y_hat, marker='x', cmap=plt.get_cmap('cool'))
         plt.show()
 
+def amazon(rl=True, test=False):
+    i = amazon_iter()
+    g = next(i)
+
+    # Make the graph smaller so it's easier to work with
+    g = nx.ego_graph(g, 0, radius=3)
+
+    m = embed_amazon(g, rl=rl)
+    train = int(len(m.wv.vectors) * TRAIN_RATIO)
+    validate = train+int(len(m.wv.vectors) * VALIDATE_RATIO) if (not test) else -1
+
+    # TODO Try this with KNN later
+    print("Training RFC...")
+    y = np.array([d['label'].item() for _,d in g.nodes.data()])
+    X, y = shuffle(m.wv.vectors, y)
+
+    rfc = RandomForestClassifier(class_weight='balanced')
+    rfc.fit(X[:train], y[:train])
+
+    y_hat = rfc.predict(X[train:validate])
+    acc = balanced_accuracy_score(y[train:validate], y_hat)
+    
+    print("Accuracy: " + str(acc))
+    if show:
+        plt.scatter(m.wv.vectors[:, 0], m.wv.vectors[:,1], c=y, marker='o', cmap=plt.get_cmap('cool'))
+        plt.scatter(m.wv.vectors[:, 0], m.wv.vectors[:,1], c=y_hat, marker='x', cmap=plt.get_cmap('cool'))
+        plt.show()
+
+
 show = False
 if len(sys.argv) > 1 and not set(sys.argv).isdisjoint(set(['graph', 'plot', 'show', 's'])):
     show = True
@@ -140,6 +189,6 @@ if len(sys.argv) > 1 and not set(sys.argv).isdisjoint(set(['test', 't'])):
 
 # Uncomment for time tests
 start = time.time()
-coauthor(rl=isRL, test=isTest)
+amazon(rl=isRL, test=isTest)
 end = time.time()
 print("Time elapsed: " + str(end - start))
