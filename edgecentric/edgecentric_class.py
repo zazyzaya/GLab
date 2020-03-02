@@ -4,7 +4,7 @@ import numpy as np
 from pyclustering.cluster.xmeans import xmeans
 from pyclustering.cluster.center_initializer import kmeans_plusplus_initializer
 from abc import ABC, abstractmethod
-from math import log, floor
+from math import log, floor, inf
 
 ''' Abstract class to create EdgeCentric graph clusters
 '''
@@ -92,6 +92,7 @@ class EdgeCentricInterface(ABC):
 			g, nb, et = self.load_edges(f, append_to=(g, nb, et))
 
 		return g, nb, et
+
 	def load_edges(self, fname, append_to=None):
 		streamer = self.__node_streamer(fname)
 		
@@ -167,12 +168,15 @@ class EdgeCentricInterface(ABC):
 			# Assumes each relation has the same keys
 			for r, edges in relations.items():
 				C[nt][r] = {}
-				
+				print('\t' + r)
+			
+				if len(edges) == 0:
+					continue 
+
 				for k in edges[0].keys():
 					if k in self.ignore_list:
 						continue
 
-					print('\t' + k)
 					vec = [self.normalize(e[k]) for e in edges]
 					C[nt][r][k] = self.__cluster(vec)
 
@@ -223,8 +227,12 @@ class EdgeCentricInterface(ABC):
 			else:
 				f_vr = 1
 
-			
+			if r not in C[nt]:
+				continue
+
 			for key in C[nt][r].keys():
+
+				min_strangeness = (inf, 0)
 				for c_idx in range(len(C[nt][r][key]['influence'])):
 					rho = C[nt][r][key]['influence'][c_idx]
 					ctr = C[nt][r][key]['centers'][c_idx]
@@ -233,11 +241,20 @@ class EdgeCentricInterface(ABC):
 					pdf = np.average(pdf, axis=0)
 					pdf = self.normalize(pdf)
 
-					feat_score += rho * self.strangeness(pdf, ctr)
+					s = self.strangeness(pdf, ctr)
+					if s < min_strangeness[0]:
+						min_strangeness = (s, rho)
+				
+				feat_score += min_strangeness[0] * 1/min_strangeness[1]
 
-			score += feat_score * f_vr
+			score += feat_score #* f_vr
 
 		return score
+
+	''' Can be used to edit node repr on output scores
+	'''
+	def format_node(self, n):
+		return n	
 
 
 	''' Iterates through all nodes in partitioned dict and gives them all a strangeness
@@ -245,11 +262,12 @@ class EdgeCentricInterface(ABC):
 	'''
 	def score_all_nodes(self, C, G):
 		scores = {}	
+
 		for n, d in G.nodes.data():
 			if d[self.nodetype] not in scores:
 				scores[d[self.nodetype]] = [] 
 			
-			scores[d[self.nodetype]].append((n, self.score_node(n, d, C, G)))
+			scores[d[self.nodetype]].append((self.format_node(n), self.score_node(n, d, C, G)))
 
 		for nt, v in scores.items():
 			v.sort(key=lambda x:  -x[1])	

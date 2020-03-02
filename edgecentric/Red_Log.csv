@@ -1,0 +1,124 @@
+﻿Timestamp (UTC),Victim Host,Victim User,C2 Server (1st Hop),Action
+19-Jul,,,,
+18:08:00,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),downloads trojanized archive over HTTP and extracts from falcon.inet
+19:18:42,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),HR1 reboots and callback established to icecream.inet
+20:41:36,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),"HR1 tasked with ""Hot Potatoe"" Attack to elevate jdoe to local admin"
+20:43:50,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),HR1 attack complete
+20:54:00,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),HR1 Reboot (User initiated)
+21:00:00,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),Agents sleep until 0900
+20-Jul,,,,
+12:22:46,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),"HR1 logged in, new agent launched"
+12:25:02,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),Bypass UAC via event viewer method launched new beacon in elevated context
+12:27:47,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),HR1 tasked with MimiKatz
+12:38:33,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),HR1 tasked with powerdump
+12:40:33,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),HR1 tasked with WMI event subscription persistance at startup
+12:46:36,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),Tasked HR1 with get_computer (Enumerate DC for list of all domain computers)
+12:50:54,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),Tasked HR1 with get_user (Enumerate DC for list of all domain users)
+12:58:57,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),Tasked HR1 to ping HR2 3 times (Success)
+13:07:00,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),Tasked HR1 with get_gpo (Enumerate domain GPOs)
+15:07:24,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),Tasked HR1 to execute beacon on HR2 via DCOM
+15:07:47,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),Initial callback from HR-WIN7-2
+15:15:19,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),"HR2 tasked with ""Hot Potatoe"" Attack to elevate bduck to local admin"
+15:16:02,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),Attack Successful
+15:21:34,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),Established user login persistence under Run key GWU
+15:58:06,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),Forced reboot to gain session as local admin
+15:59:55,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),New Agent callback from persistance 
+16:02:11,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),Bypass UAC via event viewer method launched new beacon in elevated context
+16:04:57,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),HR2 tasked with MimiKatz
+16:09:28,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),HR2 tasked with powerdump
+16:57:24,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),HR1 persistence callback (logon)
+16:59:48,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),HR2 persistence callback (logon)
+17:01:55,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),Bypass UAC via event viewer method launched new beacon in elevated context
+17:02:04,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),Bypass UAC via event viewer method launched new beacon in elevated context
+17:04:41,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),HR2 tasked with MimiKatz
+17:04:51,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),HR2 tasked with MimiKatz
+17:07:05,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),HR2 tasked with WMI event subscription persistance at startup
+17:11:20,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),HR2 tasked with executing launcher on rnd-win10-1 as rmole via wmi
+17:11:42,RND-WIN10-1,G\rmole,icecream.inet (3.3.3.5),Win10-1 initial callback
+17:15:26,RND-WIN10-1,G\rmole,icecream.inet (3.3.3.5),HR2 tasked with executing launcher on rnd-win10-1 as rmole via wmi
+17:18:29,RND-WIN10-1,G\rmole,icecream.inet (3.3.3.5),Win10-1 tasked with wmic remote process creation on rnd-2
+17:18:45,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Initial callback from win10-2
+17:23:16,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),win102 (17:23:16) tasked with bypass UAC (Fail)
+17:24:44,RND-WIN10-1,G\rmole,icecream.inet (3.3.3.5),win101 (17:24:44) tasked with bypass UAC (Fail)
+17:26:47,RND-WIN10-1,G\rmole,icecream.inet (3.3.3.5),Win10-1 tasked with powerup allchecks 
+17:27:34,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win10-2 tasked with powerup allchecks
+17:28:47,RND-WIN10-1,G\rmole,icecream.inet (3.3.3.5),Win10-1 tasked with registry persistance
+17:29:34,RND-WIN10-1,G\rmole,icecream.inet (3.3.3.5),Win10-1 tasked with registry persistance 
+17:33:52,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),RND-WIN10-2 hijackabel dll written for secondary persiatence 
+19:27:01,HR-WIN7-2,SYSTEM,icecream.inet (3.3.3.5),System callback due to end-of-day restart
+7/21,,,,
+13:35:22,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),System callback due to restart persistence
+13:35:30,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),System callback due to restart persistence
+13:42:08,RND-WIN10-1,G\rmole,icecream.inet (3.3.3.5),Win7-2 tasked with wmic remote process creation on rnd-1 and 2 (Fail)
+13:46:09,HR-WIN7-1,G\jdoe,icecream.inet (3.3.3.5),Bypass UAC via event viewer method launched new beacon in elevated context
+13:46:17,HR-WIN7-2,G\bduck,icecream.inet (3.3.3.5),Bypass UAC via event viewer method launched new beacon in elevated context
+13:51:12,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win7-2 tasked with wmic remote process creation on rnd-2 (Success)
+13:53:44,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win7-2 tasked with wmic remote process creation on rnd-1 (Fail)
+14:00:15,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win10-2 tasked with wmic remote process creation on rnd-1 (Fail)
+14:06:31,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win10-2 tasked to kerberoast domain (Fail)
+14:21:00,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win10-2 tasked with establishing meterprter listener via regsvr32 (Fail)
+14:21:00,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win10-2 tasked with establishing meterprter listener via mshta (Fail)
+14:38:21,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win10-2 tasked with establishing meterprter listener via mshta (Fail)
+14:51:16,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win7-2 tasked with wmic remote process creation on rnd-2 (Success)
+15:03:01,RND-WIN10-2,local.admin,icecream.inet (3.3.3.5),Win7-2 tasked with wmic remote process creation on rnd-2 (fail)
+15:05:57,RND-WIN10-2,local.admin,icecream.inet (3.3.3.5),Win7-2 tasked with wmic remote process creation on rnd-2 (fail)
+15:07:00,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win7-2 tasked with wmic remote process creation on rnd-2 (Success)
+15:07:00,RND-WIN10-2,G\rmole,icecream.inet (3.3.3.5),Win10-2 tasked with establishing beacon as local.admin (Fail)
+15:12:52,RND-WIN10-2,G\rmole,Kali  (1.1.1.11),Materpreter session established (Died)
+15:18:26,RND-WIN10-2,G\rmole,Kali  (1.1.1.11),Materpreter session established (Success)
+15:22:58,RND-WIN10-2,local.admin,icecream.inet (3.3.3.5),Used Meterpreter to get local.admin beacon on RND-WIN10-2
+15:25:14,RND-WIN10-2,local.admin,icecream.inet (3.3.3.5),Bypass UAC via event viewer method launched new beacon in elevated context (Fail)
+15:32:04,RND-WIN10-2,local.admin,icecream.inet (3.3.3.5),Bypass UAC (Success)
+15:41:15,RND-WIN10-2,N/A,Kali  (1.1.1.11),RDP to secret fail
+15:41:49,RND-WIN10-2,N/A,Kali  (1.1.1.11),"rdp to self, fail"
+15:44:01,RND-WIN10-2,N/A,Kali  (1.1.1.11),RDP to secret fail
+15:47:54,RND-WIN10-2,G\Administrator,icecream.inet (3.3.3.5),wmi lateral move back to win7-1 as admin (Fail)
+15:49:05,RND-WIN10-2,N/A,Kali  (1.1.1.11),nmap via win10-1
+15:52:19,RND-WIN10-2,N/A,Kali  (1.1.1.11),nmap via win10-1
+15:53:00,RND-WIN10-2,G\Administrator,icecream.inet (3.3.3.5),wmi lateral move back to win7-2 as admin (FAIL)
+15:53:00,RND-WIN10-2,G\Administrator,icecream.inet (3.3.3.5),wmi lateral move back to win-10-1 as admin (FAIL)
+15:53:00,RND-WIN10-2,G\Administrator,icecream.inet (3.3.3.5),wmi lateral move back to win-10-2 as admin (FAIL)
+15:53:00,RND-WIN10-2,G\Administrator,icecream.inet (3.3.3.5),wmi lateral move to DC as admin (FAIL)
+15:58:17,CORP-DC,G\Administrator,icecream.inet (3.3.3.5),wmic lateral move to DC as Domain Admin!
+16:00:38,CORP-DC,G\Administrator,icecream.inet (3.3.3.5),established persistence on DC via reg and wmi event
+16:10:00,END OF DATA,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,

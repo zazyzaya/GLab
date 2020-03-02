@@ -41,7 +41,7 @@ LOG_DIR = os.path.join('/', 'mnt', 'raid0_24TB', 'datasets', 'pico', 'bro')
 EC_ENUM = EdgeCentricEnum()
 
 class EdgeCentricPico(EdgeCentricInterface):
-	def __init__(self, alpha=5, mc=20, ic=2, direction_of_interest=EC_ENUM.in_edges):
+	def __init__(self, alpha=5, mc=500, ic=1, direction_of_interest=EC_ENUM.both):
 		super().__init__(
 			mc=mc, 
 			ic=ic, 
@@ -57,6 +57,14 @@ class EdgeCentricPico(EdgeCentricInterface):
 
 	def run_all(self, fout='results.json', igraph=None, ograph=None):
 		super().run_all(self.baseline + self.comprimised, igraph=igraph, ograph=ograph)
+
+	
+	def format_node(self, n):	
+		ip, n = n.split('-')
+		n = n.split('.')[0]
+		n = dt.datetime.fromtimestamp(int(n))
+
+		return ip + ' -- ' + n.strftime('%Y-%m-%d:%H:%M:%S')
 
 	''' Defines each group of conn files to be loaded by the graph builder
 	'''
@@ -83,9 +91,20 @@ class EdgeCentricPico(EdgeCentricInterface):
 		round_ts -= round_ts % self.alpha 
 
 		add_ts = lambda x : x + '-' + str(round_ts)
+		build_e = lambda x : str(x['id.resp_p'])
+	
+		relation = build_e(edge)
+		src = add_ts(edge['id.orig_h'])
+		dst = add_ts(edge['id.resp_h'])
+
+		has_e = G.has_edge(src, dst)
+		if has_e:
+			has_rel = relation in [v['relation'] for v in G[src][dst].values()]
+		else:
+			has_rel = False
 
 		# Initialize vectors
-		if not G.has_edge(add_ts(edge['id.orig_h']), add_ts(edge['id.resp_h'])):
+		if not (has_e and has_rel):
 			oIsLocal = '1' if edge['local_orig'] else '0'
 			rIsLocal = '1' if edge['local_resp'] else '0'
 			G.add_node(add_ts(edge['id.orig_h']), isLocal=oIsLocal)
@@ -100,8 +119,7 @@ class EdgeCentricPico(EdgeCentricInterface):
 			nb[oIsLocal].add(add_ts(edge['id.orig_h']))
 			nb[rIsLocal].add(add_ts(edge['id.orig_h']))
 	
-			# Right now, only one kind of relation
-			et.add('relation1')
+			et.add(relation)
 
 			proto_vec = [0.0] * len(PROTO_DICT)
 			conn_vec = [0.0] * len(CONN_DICT)
@@ -110,8 +128,8 @@ class EdgeCentricPico(EdgeCentricInterface):
 			dur_vec = [0.0] * (MAX_DUR + DUR_OFFSET)
 			
 			# Keep track of system port traffic
-			orig_p_vec = [0.0] * 1024
-			resp_p_vec = [0.0] * 1024
+			#orig_p_vec = [0.0] * 1024
+			#resp_p_vec = [0.0] * 1024
 
 			# Keep track of time between contact (if it exists)
 			td_vec = [0.0] * 21 # Time delta 
@@ -119,28 +137,29 @@ class EdgeCentricPico(EdgeCentricInterface):
 			last_ts = None
 			edge_ct = 0
 
-			G.add_edge(
-				add_ts(edge['id.orig_h']), 
-				add_ts(edge['id.resp_h']), 
-				relation='relation1'
+			eid = G.add_edge(
+				src, dst,	
+				relation=relation
 			)
 
 			# Now define old_e as the current dictionary 
-			old_e = G[add_ts(edge['id.orig_h'])][add_ts(edge['id.resp_h'])][0]
+			old_e = G[add_ts(edge['id.orig_h'])][add_ts(edge['id.resp_h'])][eid]
 
 		
 		# Or get current vectors
 		else:
-			# Don't have to worry about edge id. There should only ever be 1 edge 
-			# between nodes (for now)
-			old_e = G[add_ts(edge['id.orig_h'])][add_ts(edge['id.resp_h'])][0]
+			for e in G[src][dst].values():
+				if e['relation'] == relation:
+					old_e = e
+					break
+				
 			proto_vec = old_e['proto_vec']
 			conn_vec = old_e['conn_vec']
 			dur_vec = old_e['dur_vec']
 			orig_pkt_vec = old_e['orig_pkt_vec']
 			resp_pkt_vec = old_e['resp_pkt_vec']
-			orig_p_vec = old_e['orig_p_vec']
-			resp_p_vec = old_e['resp_p_vec']
+			#orig_p_vec = old_e['orig_p_vec']
+			#resp_p_vec = old_e['resp_p_vec']
 			ts_vec = old_e['ts_vec']
 			td_vec = old_e['td_vec']
 			last_ts = old_e['last_ts']
@@ -157,11 +176,13 @@ class EdgeCentricPico(EdgeCentricInterface):
 		proto_vec[PROTO_DICT[edge['proto']]] += 1
 		ts_vec[d.hour] += 1
 
+		'''
 		# Only keep track of system ports
 		if edge['id.orig_p'] < 1024:
 			orig_p_vec[edge['id.orig_p']] += 1
 		if edge['id.resp_p'] < 1024:	
 			resp_p_vec[edge['id.resp_p']] += 1
+		'''
 
 		# Avoid log(0) errors	
 		if edge['orig_pkts'] != 0:
@@ -180,8 +201,8 @@ class EdgeCentricPico(EdgeCentricInterface):
 			td_vec[idx] += 1
 
 		# Finally, replace edge with aggregated version
-		old_e['orig_p_vec'] = orig_p_vec
-		old_e['resp_p_vec'] = resp_p_vec
+		#old_e['orig_p_vec'] = orig_p_vec
+		#old_e['resp_p_vec'] = resp_p_vec
 		old_e['proto_vec'] = proto_vec
 		old_e['orig_pkt_vec'] = orig_pkt_vec
 		old_e['resp_pkt_vec'] = resp_pkt_vec
@@ -196,7 +217,7 @@ class EdgeCentricPico(EdgeCentricInterface):
 		return G
 
 if __name__ == '__main__':	
-	EC = EdgeCentricPico(alpha=100)
+	EC = EdgeCentricPico(alpha=1)
 
 	print("Loading graph")
 	g, nb, et = EC.build_graph(EC.baseline)
