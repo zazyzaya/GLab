@@ -135,7 +135,7 @@ class EdgeCentricInterface(ABC):
 		centers = xm.get_centers()
 
 		return {
-			'influence': [len(c)/len(vectors) for c in clusters],
+			'influence': [len(vectors)/len(c) for c in clusters],
 			'centers': centers
 		}
 
@@ -209,6 +209,7 @@ class EdgeCentricInterface(ABC):
 
 		relations = {}
 		nt = nd[self.nodetype]
+		tot_edge_ct = 0
 
 		# Build node PDF via simple average (NOTE: could be tweaked?)
 		for u,v in edges:
@@ -216,14 +217,17 @@ class EdgeCentricInterface(ABC):
 			for a in attrs:
 				if a[self.edgetype] not in relations:
 					relations[a[self.edgetype]] = [] 
+				if self.edge_ct:
+					tot_edge_ct += a[self.edge_ct]
 
 				relations[a[self.edgetype]].append(a)
 		
 		for r, vals in relations.items():
 			feat_score = 0.0
-			
+		
+			# We want to draw attention to anomalous kinds of edges (?)
 			if self.edge_ct:
-				f_vr = sum([v[self.edge_ct] for v in vals])
+				f_vr = tot_edge_ct / sum([v[self.edge_ct] for v in vals])
 			else:
 				f_vr = 1
 
@@ -245,7 +249,7 @@ class EdgeCentricInterface(ABC):
 					if s < min_strangeness[0]:
 						min_strangeness = (s, rho)
 				
-				feat_score += min_strangeness[0] * 1/min_strangeness[1]
+				feat_score += min_strangeness[0] * min_strangeness[1]
 
 			score += feat_score #* f_vr
 
