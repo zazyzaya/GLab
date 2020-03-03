@@ -1,4 +1,6 @@
+import torch
 import random
+import torch.cuda
 import numpy as np
 import networkx as nx
 
@@ -8,15 +10,14 @@ from joblib import Parallel, delayed
 from sklearn.metrics.pairwise import cosine_similarity
 
 class Attr2Vec():
-    def __init__(self, graph, attrs, dimensions=128, walk_length=80, num_walks=10, workers=1):
+    def __init__(self, graph, dimensions=128, walk_length=80, num_walks=10, workers=1):
         self.g = graph
         self.dimensions = dimensions
         self.walk_length = walk_length
         self.num_walks = num_walks
         self.workers = workers
-        self.attrs = [nx.get_node_attributes(self.g, a) for a in attrs]
 
-        print("Generating walks for " + str(len(self.g.nodes())) + ' nodes')
+        print("Generating walks for " + str(self.g.number_of_nodes) + ' nodes')
         self.walks = self.generate_walks()
 
 
@@ -62,11 +63,11 @@ class Attr2Vec():
 
             for n in node_list:
                 walk = [n]
-                walk_data = np.array([attr[n].numpy() for attr in self.attrs]).flatten()
+                walk_data = self.g.ndata['feat'][n]
 
                 while len(walk) < self.walk_length:
                     next_node = self.select_next(walk[-1], walk_data)
-                    walk_data = self.update_walk_data(walk_data, next_node)
+                    walk_data = self.update_walk_data(walk_data, self.g.ndata['feat'][next_node])
                     walk.append(next_node)
 
                 walk = list(map(str, walk))
@@ -78,19 +79,18 @@ class Attr2Vec():
 
     ''' Placeholder. For now selects similar neighbors; in the future should use (deep?) RL
     '''
-    def select_next(self, n, wv):
-        neighbors = list(self.g[n])
-        neighbor_attrs = [np.array([attrib[neigh].numpy() for attrib in self.attrs]).flatten() for neigh in neighbors]
-        
-        sims = cosine_similarity(neighbor_attrs, Y=[wv])
-        max_s = sims.max()
-        next_idx = np.random.choice(np.where(sims == max_s)[0])
+    def select_next(self, n, wv):        
+        neighbors = self.g.predecessors(n)
+        neighbor_attrs = torch.stack([self.g.ndata['feat'] for neigh in neighbors])
 
-        return neighbors[next_idx]
+        sims = torch.nn.functional.cosine_similarity(neighbor_attrs, wv)
+        v = sims.max()
+        options = torch.nonzero(sims==v)
+
+        return neighbors[options[random.randint(0, options.size(0)-1)].item()]
 
 
     ''' Placeholder. For now just averages two vectors together; in the future should use torch.linear
     '''
     def update_walk_data(self, wv, n):
-        nv = np.array([attrib[n].numpy() for attrib in self.attrs]).flatten()
-        return np.mean(np.array([nv, wv]), axis=0)
+         return (wv+n)/2
