@@ -41,7 +41,7 @@ LOG_DIR = os.path.join('/', 'mnt', 'raid0_24TB', 'datasets', 'pico', 'bro')
 EC_ENUM = EdgeCentricEnum()
 
 class EdgeCentricPico(EdgeCentricInterface):
-	def __init__(self, alpha=5, mc=500, ic=1, direction_of_interest=EC_ENUM.both):
+	def __init__(self, alpha=5, mc=10, ic=1, direction_of_interest=EC_ENUM.both):
 		super().__init__(
 			mc=mc, 
 			ic=ic, 
@@ -81,7 +81,7 @@ class EdgeCentricPico(EdgeCentricInterface):
 					self.comprimised.append(os.path.join(LOG_DIR, folder, fname))
 
 
-	def add_edge(self, G, streamer, nb, et):
+	def add_edge(self, G, streamer):
 		edge = next(streamer)
 		old_e = None
 
@@ -110,30 +110,20 @@ class EdgeCentricPico(EdgeCentricInterface):
 			G.add_node(add_ts(edge['id.orig_h']), isLocal=oIsLocal)
 			G.add_node(add_ts(edge['id.resp_h']), isLocal=rIsLocal)
 
-			if oIsLocal not in nb:
-				nb[oIsLocal] = set()
-			if rIsLocal not in nb:
-				nb[rIsLocal] = set()
-
-			# Add nodes to nodebunches in respective groups
-			nb[oIsLocal].add(add_ts(edge['id.orig_h']))
-			nb[rIsLocal].add(add_ts(edge['id.orig_h']))
-	
-			et.add(relation)
-
-			proto_vec = [0.0] * len(PROTO_DICT)
-			conn_vec = [0.0] * len(CONN_DICT)
-			orig_pkt_vec = [0.0] * (MAX_PKTS + PKT_OFFSET)
-			resp_pkt_vec = [0.0] * (MAX_PKTS + PKT_OFFSET)
-			dur_vec = [0.0] * (MAX_DUR + DUR_OFFSET)
+			# Set up empty vectors
+			proto_vec = np.zeros(len(PROTO_DICT))
+			conn_vec = np.zeros(len(CONN_DICT))
+			orig_pkt_vec = np.zeros(MAX_PKTS + PKT_OFFSET)
+			resp_pkt_vec = np.zeros(MAX_PKTS + PKT_OFFSET)
+			dur_vec = np.zeros(MAX_DUR + DUR_OFFSET)
 			
 			# Keep track of system port traffic
 			#orig_p_vec = [0.0] * 1024
 			#resp_p_vec = [0.0] * 1024
 
 			# Keep track of time between contact (if it exists)
-			td_vec = [0.0] * 21 # Time delta 
-			ts_vec = [0.0] * 24 # Hour of occurence
+			td_vec = np.zeros(21)  # Time delta 
+			ts_vec = np.zeros(24)  # Hour of occurence
 			last_ts = None
 			edge_ct = 0
 
@@ -220,13 +210,15 @@ if __name__ == '__main__':
 	EC = EdgeCentricPico(alpha=1)
 
 	print("Loading graph")
-	g, nb, et = EC.build_graph(EC.baseline)
+	g = EC.build_graph(EC.baseline)
 
 	print("Clustering")
-	C = EC.build_pmfs(g, nb, et)
+	C = EC.build_pmfs(g)
+	with open('clusters.json', 'w+') as f:
+		f.write(json.dumps(C, indent=4))
 
 	print("Loading comprimised graph")
-	gp, _, __ = EC.build_graph(EC.comprimised)
+	gp = EC.build_graph(EC.comprimised)
 
 	print("Scoring...")
 	S = EC.score_all_nodes(C, gp)
