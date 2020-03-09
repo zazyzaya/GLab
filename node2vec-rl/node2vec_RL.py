@@ -9,14 +9,17 @@ import matplotlib.pyplot as plt
 
 from attr2vec import Attr2Vec
 from node2vec import Node2Vec
+from node2vec_no_id import Node2VecNoId
+
 from sklearn.svm import LinearSVC
 from sklearn.utils import shuffle
+from gensim.models import Word2Vec
 from node2vec_RL_class import Node2VecRL
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import balanced_accuracy_score, v_measure_score
 
-NUM_CPU = 16 if multiprocessing.cpu_count() > 8 else 4
+NUM_CPU = 16 if multiprocessing.cpu_count() > 8 else 1
 TRAIN_RATIO = 0.7
 VALIDATE_RATIO = 0.15
 TEST_RATIO = 0.15
@@ -35,12 +38,15 @@ def coauthor_iter():
     for g in range(len(graphs)):
         yield graphs[g].to_networkx(node_attrs=['feat', 'label'])
 
-def ppi_iter():
-    graphs = dgl.data.AmazonCoBuy('computers')
+def ppi_iter(test):
+    if test:
+        graphs = dgl.data.PPIDataset('test')
+    else:
+        graphs = dgl.data.PPIDataset('train')
 
     l = len(graphs)
     for g in range(l):
-        yield graphs[g].to_networkx(node_attrs=['feat', 'label'])
+        yield graphs[g]
 
 
 def embed_karate(g, rl=True):
@@ -56,7 +62,7 @@ def embed_karate(g, rl=True):
 
 def embed_coauthor(g, rl=True):
     if rl:
-        ntv = Attr2Vec(g, ['feat'], dimensions=80, walk_length=32, num_walks=16, workers=NUM_CPU)
+        ntv = Node2VecNoId(g, feat_key='feat', dimensions=80, walk_length=32, num_walks=16, workers=NUM_CPU)
     else:
         ntv = Node2Vec(g, dimensions=80, walk_length=32, num_walks=16, workers=NUM_CPU)
 
@@ -68,7 +74,7 @@ def embed_coauthor(g, rl=True):
 
 def embed_ppi(g, rl=True):
     if rl:
-        ntv = Attr2Vec(g, ['feat'], dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU)
+        ntv = Attr2Vec(g, dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU)
     else:
         ntv = Node2Vec(g, dimensions=16, walk_length=16, num_walks=16, workers=NUM_CPU)
 
@@ -151,20 +157,16 @@ def coauthor(rl=True, test=False):
         plt.show()
 
 def ppi(rl=True, test=False):
-    i = ppi_iter()
+    i = ppi_iter(test)
     g = next(i)
 
-    # Make the graph smaller so it's easier to work with
-    g = nx.ego_graph(g, 0, radius=2)
-
-    m = embed_ppi(g, rl=rl)
+    m = embed_ppi(g[0], rl=rl)
     train = int(len(m.wv.vectors) * TRAIN_RATIO)
     validate = train+int(len(m.wv.vectors) * VALIDATE_RATIO) if (not test) else -1
 
     # TODO Try this with KNN later
     print("Training RFC...")
-    y = np.array([d['label'].item() for _,d in g.nodes.data()])
-    X, y = shuffle(m.wv.vectors, y)
+    X, y = shuffle(m.wv.vectors, g[1])
 
     rfc = RandomForestClassifier(class_weight='balanced')
     rfc.fit(X[:train], y[:train])
@@ -178,6 +180,14 @@ def ppi(rl=True, test=False):
         plt.scatter(m.wv.vectors[:, 0], m.wv.vectors[:,1], c=y_hat, marker='x', cmap=plt.get_cmap('cool'))
         plt.show()
 
+
+def score(rl=True):
+    pass  # TODO
+
+    if rl:
+        model = Word2Vec.load('word_2_vec_rl.dat')    
+    else:
+        model = Word2Vec.load('word_2_vec.dat')
 
 show = False
 if len(sys.argv) > 1 and not set(sys.argv).isdisjoint(set(['graph', 'plot', 'show', 's'])):
@@ -193,6 +203,6 @@ if len(sys.argv) > 1 and not set(sys.argv).isdisjoint(set(['test', 't'])):
 
 # Uncomment for time tests
 start = time.time()
-ppi(rl=isRL, test=isTest)
+coauthor(rl=True, test=isTest)
 end = time.time()
 print("Time elapsed: " + str(end - start))
