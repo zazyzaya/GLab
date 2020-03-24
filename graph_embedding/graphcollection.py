@@ -68,13 +68,18 @@ class GraphCollection():
     ''' Takes networkx graph and converts it to a dgl graph then 
         adds to the dict of all graphs indexed by label
     '''
-    def add_graph(self, nxg, l, edge_labels=[]):
-        g = DGLGraph()
-
-        if len(edge_labels):
-            g.from_networkx(nxg, edge_attrs=edge_labels, node_attrs=['x'])
-        else:
-            g.from_networkx(nxg, node_attrs=['x'])
+    def add_graph(self, nxg, l, edge_labels=[], use_dgl=True):
+		g = None	
+		if use_dgl:
+        	g = DGLGraph()
+		
+			if len(edge_labels):
+				g.from_networkx(nxg, edge_attrs=edge_labels, node_attrs=['x'])
+			else:
+				g.from_networkx(nxg, node_attrs=['x'])
+		
+		else:
+			g = nxg		
 
         if l in self.graphs:
             self.graphs[l].append(g)
