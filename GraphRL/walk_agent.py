@@ -3,7 +3,7 @@ import random
 import queue
 
 class WalkAgent:
-    def __init__(self, g, encode_state, num_walks, novelty_lag=7, learning_rate=0.9):
+    def __init__(self, g, num_walks, walk_len, novelty_lag=3, learning_rate=0.9):
         '''
         Parameters:
             g:              An nx graph 
@@ -12,8 +12,8 @@ class WalkAgent:
         
         self.g = g
         self.num_walks = num_walks
+        self.walk_len = walk_len
         self.d = sorted([d for n,d in g.degree()], reverse=True)[0]
-        self.encode_state = encode_state
         self.novelty_dict = {}
         self.learning_rate = learning_rate
         
@@ -42,7 +42,7 @@ class WalkAgent:
         Current policy: pick next state based on 
             Highest relative novelty score (if known)
         '''
-        neighbors = list(self.g[self.cur_state])
+        neighbors = list(self.g[state])
 
         # Uses RN score as pdf for random walk
         # Improves as it progresses
@@ -51,17 +51,20 @@ class WalkAgent:
         )[0]
 
 
-    def state_transition(self, action, change_state=True):
+    def state_transition(self, action, state=None, change_state=True):
         ''' 
         Goes to next state, and updates novelty/relative novelty scores
         as needed
 
         Assumes action is the neighbor's index we are going to 
         ''' 
-        if self.cur_state in self.novelty_dict:
-            self.novelty_dict[self.cur_state] += 1
+        if state == None:
+            state = self.cur_state
+
+        if state in self.novelty_dict:
+            self.novelty_dict[state] += 1
         else:
-            self.novelty_dict[self.cur_state] = 1
+            self.novelty_dict[state] = 1
 
         # Remove value from q and assign it relative novelty
         if self.rn_queue.full():
@@ -72,15 +75,41 @@ class WalkAgent:
             # When we have it, update based on gradient
             if rn:
                 expected = self.rn_dict.get(rns, 1)
-                self.rn_dict = expected + self.learning_rate*(rn - expected)
+                self.rn_dict[rns] = expected + self.learning_rate*(rn - expected)
 
         # Add this state to the respective queues for processing later
-        self.rn_queue.put(self.cur_state)
-        self.rn_buffer.add(self.cur_state)
+        self.rn_queue.put(state)
+        self.rn_buffer.add(state)
 
         # Finally, advance to new state
         if change_state:
             self.cur_state = action
+
+        return action 
+
+
+    def generate_random_walks(self, start_node):
+        '''
+        Generates random walks for a given start node
+        Resets so relative novelty continues to be variable
+        '''
+
+        walks = []
+        for _ in range(self.num_walks):
+            walk = [start_node]
+
+            for __ in range(self.walk_len):
+                s = walk[-1]
+                walk.append(
+                    self.state_transition(
+                        self.policy(s), state=s, change_state=False
+                    )
+                )
+
+            walks.append([str(w) for w in walk])
+        
+        self.reset()
+        return walks
 
     
     ''' I don't think we need to use NNs if we use Relative Novelty. I want
@@ -133,14 +162,14 @@ class NoveltyQueue():
     
 
     def get_relative_novelty(self):
-        if not self.isfull():
+        if not self.isfull:
             return False
 
         old = []
         new = []
 
         # There may be a faster way of doing this, but this works for now
-        isOld = lambda x : self.ptr < x and x < self.ptr+(int(self.nl/2))
+        isOld = lambda x : self.ptr <= x and x <= self.ptr+(int(self.nl/2))
 
         for i in range(self.nl):
             if isOld(i) or isOld(i+self.nl):
