@@ -150,11 +150,12 @@ class EdgeCentricInterface(ABC):
 					continue 
 
 				for k in edges[0].keys():
-					print(k)	
+					print('\t\t\t'+k, end=' ')	
 					if k in self.ignore_list:
-						print('ignoring')	
+						print('(ignoring)')	
 						continue
-
+					print()	
+					
 					vec = [self.normalize(e[k]) for e in edges]
 					C[nt][rel][k] = self.__cluster(vec)
 

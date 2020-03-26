@@ -1,4 +1,5 @@
 import numpy as np
+import json
 
 from edgecentric_LANL import EdgeCentricLANL 
 
@@ -31,20 +32,27 @@ class EdgeCentricLANL_Auth(EdgeCentricLANL):
 	LOGON_TYPE = {
 		'Network': 0,
 		'Service': 1,
-		'Batch': 2
+		'Batch': 2, 
+		'NetworkCleartext': 3,
+		'Interactive': 4,
+		'NewCredentials': 5,
+		'Unlock': 6,
+		'RemoteInteractive': 7,
+		'CachedInteractive': 8
 	}
 
 	AUTH_ORIENTATION = {
 		'LogOn': 0,
-		'LogOff': 2,
-		'TGS': 3,
-		'TGT': 4,
-		'AuthMap': 5
+		'LogOff': 1,
+		'TGS': 2,
+		'TGT': 3,
+		'AuthMap': 4, 
+		'ScreenLock': 5,
+		'ScreenUnlock': 6
 	}
 
 	def __init__(self, delta=1, start_time=None, end_time=None):
-		super().__init__(delta=delta, start_time=start_time, end_time=end_time)
-		self.edgetype='auth_type'
+		super().__init__(delta=delta, start_time=start_time, end_time=end_time, edgetype='auth_type')
 
 	def node_streamer(self, fname):
 		skip = True	
@@ -74,7 +82,6 @@ class EdgeCentricLANL_Auth(EdgeCentricLANL):
 	def add_edge(self, G, streamer):
 		edge = next(streamer)
 		old_e = None
-		print(edge)	
 
 		ts = int(edge['timestamp'])
 		ts -= ts % self.delta
@@ -95,7 +102,7 @@ class EdgeCentricLANL_Auth(EdgeCentricLANL):
 
 			eid = G.add_edge(
 				src, dst,
-				auth_type=rel,
+				auth_type=rel, edge_ct=0,
 				logon_type=np.zeros(len(self.LOGON_TYPE)),
 				auth_orientation=np.zeros(len(self.AUTH_ORIENTATION)),
 				success=np.zeros(2)
@@ -122,6 +129,8 @@ class EdgeCentricLANL_Auth(EdgeCentricLANL):
 			sidx = 0 if edge['success'] == 'Success' else 0
 			old_e['success']
 
+		old_e['edge_ct'] += 1
+
 
 if __name__ == '__main__':
 	# Builds the edge clusters
@@ -137,3 +146,20 @@ if __name__ == '__main__':
 	print("Saving clusters")
 	with open('clusters.json', 'w+') as f:
 		f.write(json.dumps(c, indent=4))
+
+	#This compares new edges to the old clusters
+	EC_mal = EdgeCentricLANL_Auth(start_time=150885, end_time=156660)
+
+	print("Loading clusters")
+	with open('clusters.json', 'r') as f:
+		C = json.loads(f.read())
+
+	print("Building graph")
+	g = EC_mal.build_graph([AUTH_LOGS])
+
+	print("Scoring nodes")
+	S = EC_mal.score_all_nodes(C, g)
+
+	print(json.dumps(S, indent=4))
+	with open('results.json', 'w+') as f:
+		f.write(json.dumps(S, indent=4))

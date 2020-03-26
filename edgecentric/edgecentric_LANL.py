@@ -30,11 +30,11 @@ MAX_PACKETS  = 15 # See above
 MAX_BYTES    = 22 # ln(1e9) ~= 21. Assume packets are less than 1 gig in size
 
 class EdgeCentricLANL(EdgeCentricInterface):
-	def __init__(self, delta=1, start_time=None, end_time=60*60*24*1):
+	def __init__(self, delta=1, start_time=None, end_time=60*60*24*1, edgetype='protocol'):
 		self.delta = delta 
 		self.start_time = start_time if start_time else 0
 		self.end_time = end_time if end_time else inf
-		super().__init__(edgetype='protocol', edge_ct='edge_ct')
+		super().__init__(edgetype=edgetype, edge_ct='edge_ct')
 	
 
 	''' Always going to use FLOWS as filename, but method signature
