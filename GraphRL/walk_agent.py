@@ -3,7 +3,8 @@ import random
 import queue
 
 class WalkAgent:
-    def __init__(self, g, num_walks, walk_len, novelty_lag=3, learning_rate=0.9):
+    def __init__(self, g, num_walks=128, walk_length=8, novelty_lag=4, 
+                learning_rate=0.1):
         '''
         Parameters:
             g:              An nx graph 
@@ -12,16 +13,23 @@ class WalkAgent:
         
         self.g = g
         self.num_walks = num_walks
-        self.walk_len = walk_len
+        self.walk_len = walk_length
         self.d = sorted([d for n,d in g.degree()], reverse=True)[0]
         self.novelty_dict = {}
         self.learning_rate = learning_rate
         
+        self.nl = novelty_lag
         self.rn_queue = queue.Queue(maxsize=int(novelty_lag/2))
         self.rn_dict = {}
         self.rn_buffer = NoveltyQueue(novelty_lag, self.novelty_dict)
         self.cur_state = None
+        self.default_rn = 2
     
+    def clear_rn_queue(self):
+        while not self.rn_queue.empty():
+            self.rn_queue.get()
+        
+        self.rn_buffer.clear()
 
     def reset(self):
         '''
@@ -32,10 +40,8 @@ class WalkAgent:
         self.novelty_dict.clear()
         self.rn_dict.clear()
         self.rn_buffer.clear()
+        self.clear_rn_queue()
         
-        while not self.rn_queue.empty():
-            self.rn_queue.get()
-
 
     def policy(self, state):
         ''' 
@@ -47,7 +53,7 @@ class WalkAgent:
         # Uses RN score as pdf for random walk
         # Improves as it progresses
         return random.choices(
-            neighbors, [self.rn_dict.get(k, 1) for k in neighbors]
+            neighbors, [self.rn_dict.get(k, self.default_rn) for k in neighbors]
         )[0]
 
 
@@ -74,7 +80,7 @@ class WalkAgent:
             # Have to wait twice as long to get relative novelty
             # When we have it, update based on gradient
             if rn:
-                expected = self.rn_dict.get(rns, 1)
+                expected = self.rn_dict.get(rns, self.default_rn)
                 self.rn_dict[rns] = expected + self.learning_rate*(rn - expected)
 
         # Add this state to the respective queues for processing later
@@ -107,6 +113,7 @@ class WalkAgent:
                 )
 
             walks.append([str(w) for w in walk])
+            self.clear_rn_queue()
         
         self.reset()
         return walks
@@ -128,12 +135,13 @@ class WalkAgent:
 
 
 class NoveltyQueue():
-    def __init__(self, length, novelty_map):
+    def __init__(self, length, novelty_map, default_n=1):
         self.nl = length 
         self.ptr = 0
         self.isfull = False
         self.queue = [None] * self.nl
         self.novelty_map = novelty_map
+        self.default_n = default_n
 
     def clear(self):
         self.ptr = 0
@@ -141,7 +149,7 @@ class NoveltyQueue():
 
     def avg(self, arr):
         return sum(
-            [self.novelty_map.get(val, 1)**(-1) for val in arr] 
+            [self.novelty_map.get(val, self.default_n)**(-0.5) for val in arr] 
         )/len(arr)
 
     def add(self, item):
@@ -169,7 +177,7 @@ class NoveltyQueue():
         new = []
 
         # There may be a faster way of doing this, but this works for now
-        isOld = lambda x : self.ptr <= x and x <= self.ptr+(int(self.nl/2))
+        isOld = lambda x : self.ptr <= x and x < self.ptr+(int(self.nl/2))
 
         for i in range(self.nl):
             if isOld(i) or isOld(i+self.nl):
